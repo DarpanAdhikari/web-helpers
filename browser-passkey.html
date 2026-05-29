@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Passkey Demo</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      width: 400px;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 12px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    #registerBtn {
+      background: #2563eb;
+      color: white;
+    }
+
+    #loginBtn {
+      background: #16a34a;
+      color: white;
+    }
+
+    #clearBtn {
+      background: #dc2626;
+      color: white;
+    }
+
+    .log {
+      margin-top: 20px;
+      background: #111827;
+      color: #e5e7eb;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>Passkey Demo</h2>
+
+    <button id="registerBtn">
+      Create Passkey
+    </button>
+
+    <button id="loginBtn">
+      Login with Passkey
+    </button>
+
+    <button id="clearBtn">
+      Clear Stored Credential
+    </button>
+
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+
+    const logEl = document.getElementById('log');
+
+    function log(message, data = null) {
+      console.log(message, data);
+
+      logEl.textContent +=
+        message +
+        (data ? '\n' + JSON.stringify(data, null, 2) : '') +
+        '\n\n';
+
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // ---------------------------------------
+    // Base64URL Helpers
+    // ---------------------------------------
+
+    function bufferToBase64url(buffer) {
+      return btoa(
+        String.fromCharCode(...new Uint8Array(buffer))
+      )
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+    }
+
+    function base64urlToBuffer(base64url) {
+
+      const padding =
+        '='.repeat((4 - base64url.length % 4) % 4);
+
+      const base64 =
+        (base64url + padding)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+
+      const str = atob(base64);
+
+      return Uint8Array.from(
+        str,
+        c => c.charCodeAt(0)
+      );
+    }
+
+    // ---------------------------------------
+    // CREATE PASSKEY
+    // ---------------------------------------
+
+    document
+      .getElementById('registerBtn')
+      .addEventListener('click', async () => {
+
+      if (!window.PublicKeyCredential) {
+        alert('WebAuthn not supported');
+        return;
+      }
+
+      try {
+
+        log('Generating challenge...');
+
+        const challenge = new Uint8Array(32);
+        crypto.getRandomValues(challenge);
+
+        const userId = new Uint8Array(16);
+        crypto.getRandomValues(userId);
+
+        const publicKey = {
+
+          challenge,
+
+          rp: {
+            name: 'Demo Passkey App',
+          },
+
+          user: {
+            id: userId,
+            name: 'john@example.com',
+            displayName: 'John Doe',
+          },
+
+          pubKeyCredParams: [
+            {
+              type: 'public-key',
+              alg: -7,
+            },
+          ],
+
+          authenticatorSelection: {
+            residentKey: 'preferred',
+            userVerification: 'preferred',
+          },
+
+          timeout: 60000,
+
+          attestation: 'none',
+        };
+
+        log('Opening biometric prompt...');
+
+        const credential =
+          await navigator.credentials.create({
+            publicKey,
+          });
+
+        log('Passkey created successfully');
+
+        const credentialId =
+          bufferToBase64url(credential.rawId);
+
+        localStorage.setItem(
+          'credentialId',
+          credentialId
+        );
+
+        log('Credential ID stored in localStorage');
+        log('Credential ID:', credentialId);
+
+        alert('Passkey Created Successfully');
+
+      } catch (err) {
+
+        console.error(err);
+
+        log('Registration Error:', {
+          message: err.message,
+          name: err.name,
+        });
+
+        alert(err.message);
+      }
+    });
+
+    // ---------------------------------------
+    // LOGIN WITH PASSKEY
+    // ---------------------------------------
+
+    document
+      .getElementById('loginBtn')
+      .addEventListener('click', async () => {
+
+      try {
+
+        const savedCredentialId =
+          localStorage.getItem('credentialId');
+
+        if (!savedCredentialId) {
+          alert('No passkey registered');
+          return;
+        }
+
+        log('Generating login challenge...');
+
+        const challenge = new Uint8Array(32);
+        crypto.getRandomValues(challenge);
+
+        const publicKey = {
+
+          challenge,
+
+          allowCredentials: [
+            {
+              id: base64urlToBuffer(savedCredentialId),
+              type: 'public-key',
+            },
+          ],
+
+          userVerification: 'preferred',
+
+          timeout: 60000,
+        };
+
+        log('Opening biometric login prompt...');
+
+        const assertion =
+          await navigator.credentials.get({
+            publicKey,
+          });
+
+        log('Authentication successful');
+        log('Assertion Response:', assertion);
+
+        alert('Login Successful');
+
+      } catch (err) {
+
+        console.error(err);
+
+        log('Authentication Error:', {
+          message: err.message,
+          name: err.name,
+        });
+
+        alert(err.message);
+      }
+    });
+
+    // ---------------------------------------
+    // CLEAR STORAGE
+    // ---------------------------------------
+
+    document
+      .getElementById('clearBtn')
+      .addEventListener('click', () => {
+
+      localStorage.removeItem('credentialId');
+
+      log('Stored credential cleared');
+
+      alert('Credential Cleared');
+    });
+
+    // ---------------------------------------
+    // Initial Log
+    // ---------------------------------------
+
+    log('Passkey Demo Ready');
+    log('Open using localhost or HTTPS');
+
+  </script>
+
+</body>
+</html>
