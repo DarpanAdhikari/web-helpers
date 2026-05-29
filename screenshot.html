@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>Snipping Tool</title>
+
+<style>
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  font-family:Arial,sans-serif;
+  background:#111827;
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+button{
+  border:none;
+  cursor:pointer;
+}
+
+#startBtn{
+  padding:16px 30px;
+  border-radius:14px;
+  font-size:18px;
+  background:#2563eb;
+  color:white;
+}
+
+#overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.88);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:999;
+}
+
+#container{
+  position:relative;
+}
+
+canvas{
+  max-width:100vw;
+  max-height:100vh;
+  display:block;
+}
+
+#selection{
+  position:absolute;
+  border:2px solid #3b82f6;
+  background:rgba(59,130,246,.25);
+  pointer-events:none;
+  display:none;
+}
+
+#toolbar{
+  position:fixed;
+  top:20px;
+  right:20px;
+  display:none;
+  gap:10px;
+  z-index:1000;
+}
+
+.tool{
+  padding:12px 18px;
+  border-radius:10px;
+  color:white;
+  font-weight:bold;
+}
+
+#download{
+  background:#10b981;
+}
+
+#close{
+  background:#ef4444;
+}
+
+#preview{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  width:240px;
+  border-radius:12px;
+  overflow:hidden;
+  border:2px solid white;
+  display:none;
+  z-index:1000;
+}
+
+#preview img{
+  width:100%;
+  display:block;
+}
+
+#hint{
+  position:fixed;
+  top:20px;
+  left:50%;
+  transform:translateX(-50%);
+  color:white;
+  background:rgba(255,255,255,.1);
+  padding:10px 16px;
+  border-radius:12px;
+  backdrop-filter:blur(10px);
+  display:none;
+  z-index:1000;
+}
+
+</style>
+</head>
+<body>
+
+<button id="startBtn">📸 Start Snipping</button>
+
+<div id="overlay">
+
+  <div id="container">
+    <canvas id="canvas"></canvas>
+    <div id="selection"></div>
+  </div>
+
+</div>
+
+<div id="toolbar">
+  <button class="tool" id="download">Download</button>
+  <button class="tool" id="close">Close</button>
+</div>
+
+<div id="preview">
+  <img id="previewImg">
+</div>
+
+<div id="hint">
+  Drag to select screenshot area
+</div>
+
+<script>
+
+const startBtn = document.getElementById("startBtn");
+
+const overlay = document.getElementById("overlay");
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const selection = document.getElementById("selection");
+
+const toolbar = document.getElementById("toolbar");
+
+const preview = document.getElementById("preview");
+const previewImg = document.getElementById("previewImg");
+
+const hint = document.getElementById("hint");
+
+let screenshotCanvas;
+let screenshotDataURL = "";
+
+let startX = 0;
+let startY = 0;
+
+let currentX = 0;
+let currentY = 0;
+
+let dragging = false;
+
+startBtn.onclick = async ()=>{
+
+  try{
+
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video:true
+    });
+
+    const video = document.createElement("video");
+
+    video.srcObject = stream;
+
+    await video.play();
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    ctx.drawImage(video,0,0);
+
+    screenshotCanvas = document.createElement("canvas");
+    screenshotCanvas.width = canvas.width;
+    screenshotCanvas.height = canvas.height;
+
+    screenshotCanvas
+      .getContext("2d")
+      .drawImage(canvas,0,0);
+
+    stream.getTracks().forEach(track=>track.stop());
+
+    overlay.style.display = "flex";
+    toolbar.style.display = "flex";
+    hint.style.display = "block";
+
+  }catch(err){
+    console.log(err);
+  }
+
+};
+
+canvas.onmousedown = (e)=>{
+
+  const rect = canvas.getBoundingClientRect();
+
+  startX = e.clientX - rect.left;
+  startY = e.clientY - rect.top;
+
+  dragging = true;
+
+  selection.style.display = "block";
+
+};
+
+canvas.onmousemove = (e)=>{
+
+  if(!dragging) return;
+
+  const rect = canvas.getBoundingClientRect();
+
+  currentX = e.clientX - rect.left;
+  currentY = e.clientY - rect.top;
+
+  const width = currentX - startX;
+  const height = currentY - startY;
+
+  selection.style.left =
+    (width < 0 ? currentX : startX) + "px";
+
+  selection.style.top =
+    (height < 0 ? currentY : startY) + "px";
+
+  selection.style.width =
+    Math.abs(width) + "px";
+
+  selection.style.height =
+    Math.abs(height) + "px";
+
+};
+
+canvas.onmouseup = ()=>{
+
+  dragging = false;
+
+  hint.style.display = "none";
+
+  const rect = canvas.getBoundingClientRect();
+
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+
+  const x = Math.min(startX,currentX) * scaleX;
+  const y = Math.min(startY,currentY) * scaleY;
+
+  const width = Math.abs(currentX - startX) * scaleX;
+  const height = Math.abs(currentY - startY) * scaleY;
+
+  const cropCanvas = document.createElement("canvas");
+  const cropCtx = cropCanvas.getContext("2d");
+
+  cropCanvas.width = width;
+  cropCanvas.height = height;
+
+  cropCtx.drawImage(
+    screenshotCanvas,
+    x,
+    y,
+    width,
+    height,
+    0,
+    0,
+    width,
+    height
+  );
+
+  screenshotDataURL = cropCanvas.toDataURL("image/png");
+
+  preview.style.display = "block";
+  previewImg.src = screenshotDataURL;
+
+};
+
+document.getElementById("download").onclick = ()=>{
+
+  if(!screenshotDataURL) return;
+
+  const a = document.createElement("a");
+
+  a.href = screenshotDataURL;
+  a.download = "screenshot.png";
+
+  a.click();
+
+};
+
+document.getElementById("close").onclick = ()=>{
+
+  overlay.style.display = "none";
+  toolbar.style.display = "none";
+  preview.style.display = "none";
+  selection.style.display = "none";
+  hint.style.display = "none";
+
+};
+
+</script>
+
+</body>
+</html>

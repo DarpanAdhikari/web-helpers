@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocScan — Document Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181c;
+    --surface2: #222228;
+    --surface3: #2c2c34;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --accent: #00e5b4;
+    --accent2: #7c6fff;
+    --text: #f0efe8;
+    --text2: #9998a0;
+    --text3: #5a5960;
+    --danger: #ff5252;
+    --warn: #ffb347;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.1rem;
+    letter-spacing: -0.03em;
+    color: var(--accent);
+  }
+  .logo span { color: var(--text2); }
+  .step-pills {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .pill {
+    padding: 4px 14px; border-radius: 999px;
+    font-size: 12px; font-weight: 500;
+    border: 1px solid var(--border);
+    color: var(--text3);
+    background: transparent;
+    transition: all 0.2s;
+  }
+  .pill.active {
+    background: var(--accent);
+    color: #0e0e10;
+    border-color: var(--accent);
+  }
+  .pill.done {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  /* ── MAIN ── */
+  main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+  /* ── LANDING / SCAN BUTTON ── */
+  #screen-landing {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 70vh; gap: 2rem; text-align: center;
+  }
+  .scan-hero-title {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.04em;
+  }
+  .scan-hero-title em {
+    font-style: normal;
+    color: var(--accent);
+    display: block;
+  }
+  .scan-hero-sub {
+    color: var(--text2); font-size: 1rem; max-width: 420px;
+  }
+  .btn-scan-main {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 1rem 2.5rem;
+    background: var(--accent);
+    color: #0e0e10;
+    border: none; border-radius: 999px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem; font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 0 32px rgba(0,229,180,0.25);
+  }
+  .btn-scan-main:hover { transform: scale(1.04); box-shadow: 0 0 48px rgba(0,229,180,0.4); }
+  .btn-scan-main svg { width: 22px; height: 22px; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 2.5rem;
+    width: 90%; max-width: 480px;
+    transform: translateY(16px) scale(0.97);
+    transition: transform 0.25s;
+    text-align: center;
+  }
+  .modal-overlay.open .modal { transform: none; }
+  .modal h2 {
+    font-size: 1.4rem; font-weight: 600; margin-bottom: 0.5rem;
+  }
+  .modal p { color: var(--text2); font-size: 0.9rem; margin-bottom: 2rem; }
+  .modal-options {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;
+  }
+  .modal-option {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 1.5rem 1rem;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    cursor: pointer;
+    background: var(--surface2);
+    transition: all 0.2s;
+  }
+  .modal-option:hover {
+    border-color: var(--accent);
+    background: rgba(0,229,180,0.06);
+  }
+  .modal-option svg { width: 36px; height: 36px; color: var(--accent); }
+  .modal-option span { font-size: 0.9rem; font-weight: 500; }
+  .modal-close {
+    background: none; border: none; color: var(--text3);
+    font-size: 0.85rem; cursor: pointer; text-decoration: underline;
+  }
+  #file-input { display: none; }
+  #camera-input { display: none; }
+
+  /* ── EDITOR SCREEN ── */
+  #screen-editor { display: none; }
+  .editor-layout {
+    display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start;
+  }
+  @media(max-width: 800px) {
+    .editor-layout { grid-template-columns: 1fr; }
+  }
+
+  /* Canvas area */
+  .canvas-wrap {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    min-height: 480px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #main-canvas { display: block; max-width: 100%; max-height: 70vh; }
+  #crop-canvas { display: none; max-width: 100%; max-height: 70vh; }
+
+  /* Corner handles */
+  .handles-layer {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .handle {
+    position: absolute; width: 18px; height: 18px;
+    background: var(--accent);
+    border: 2px solid #0e0e10;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    pointer-events: all;
+    z-index: 10;
+    transition: transform 0.1s;
+  }
+  .handle:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.3); }
+  #poly-svg {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; overflow: visible;
+  }
+  #poly-path {
+    fill: rgba(0,229,180,0.12);
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-dasharray: 6 4;
+  }
+
+  /* Sidebar */
+  .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+  .sidebar-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+  }
+  .sidebar-section h3 {
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text3);
+    margin-bottom: 1rem;
+  }
+  .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tool-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 12px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tool-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,180,0.05); }
+  .tool-btn.active { border-color: var(--accent); background: rgba(0,229,180,0.1); color: var(--accent); }
+  .tool-btn svg { width: 20px; height: 20px; }
+
+  /* Sliders */
+  .slider-row { margin-bottom: 14px; }
+  .slider-label {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; color: var(--text2); margin-bottom: 6px;
+  }
+  .slider-label span { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent); }
+  input[type=range] {
+    width: 100%; height: 4px;
+    -webkit-appearance: none;
+    background: var(--surface3);
+    border-radius: 4px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  /* Compare toggle */
+  .compare-strip {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-top: 4px;
+  }
+  .compare-strip label { font-size: 13px; color: var(--text2); cursor: pointer; flex: 1; }
+  .toggle {
+    width: 36px; height: 20px; background: var(--surface3);
+    border-radius: 999px; position: relative; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 14px; height: 14px; background: white;
+    border-radius: 50%; transition: left 0.2s;
+  }
+  .toggle.on::after { left: 19px; }
+
+  /* Action buttons */
+  .btn-primary {
+    width: 100%;
+    padding: 13px;
+    background: var(--accent);
+    color: #0e0e10;
+    border: none; border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem; font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-secondary {
+    width: 100%; padding: 11px;
+    background: transparent;
+    color: var(--text2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 8px;
+  }
+  .btn-secondary:hover { border-color: var(--text2); color: var(--text); }
+
+  /* ── PREVIEW SCREEN ── */
+  #screen-preview { display: none; }
+  .preview-header { margin-bottom: 2rem; }
+  .preview-header h2 { font-size: 1.6rem; font-weight: 600; margin-bottom: 0.3rem; }
+  .preview-header p { color: var(--text2); font-size: 0.9rem; }
+  .preview-frame {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem;
+    display: flex; justify-content: center; align-items: flex-start; min-height: 400px;
+    position: relative; overflow: hidden;
+  }
+  .preview-frame::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      45deg, transparent, transparent 16px,
+      rgba(255,255,255,0.01) 16px, rgba(255,255,255,0.01) 17px
+    );
+  }
+  #preview-img {
+    max-width: 100%; max-height: 70vh;
+    border-radius: 4px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    position: relative; z-index: 1;
+  }
+  .preview-actions {
+    display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;
+  }
+  .btn-download {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 24px;
+    background: var(--accent);
+    color: #0e0e10; border: none;
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn-download:hover { filter: brightness(1.1); }
+  .btn-download svg { width: 18px; height: 18px; }
+  .btn-back {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 24px;
+    background: transparent; color: var(--text2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-back:hover { border-color: var(--text2); color: var(--text); }
+  .meta-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px; margin-top: 1.5rem;
+  }
+  .meta-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+  }
+  .meta-card .lbl { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .meta-card .val { font-family: 'Space Mono', monospace; font-size: 0.85rem; color: var(--accent); }
+
+  /* Status bar */
+  .status-bar {
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 999px;
+    padding: 10px 20px;
+    font-size: 13px; color: var(--text2);
+    display: flex; align-items: center; gap: 8px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 200;
+    white-space: nowrap;
+  }
+  .status-bar.show { opacity: 1; }
+  .status-dot { width: 7px; height: 7px; background: var(--accent); border-radius: 50%; }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: absolute; inset: 0;
+    background: rgba(14,14,16,0.8);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1rem; z-index: 50;
+    border-radius: var(--radius);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .loading-overlay.show { opacity: 1; pointer-events: all; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-overlay p { font-size: 0.85rem; color: var(--text2); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">Doc<span>Scan</span></div>
+  <div class="step-pills">
+    <div class="pill active" id="pill-1">① Capture</div>
+    <div class="pill" id="pill-2">② Adjust</div>
+    <div class="pill" id="pill-3">③ Enhance</div>
+    <div class="pill" id="pill-4">④ Preview</div>
+  </div>
+</header>
+
+<main>
+  <!-- ── SCREEN 1: LANDING ── -->
+  <div id="screen-landing">
+    <div>
+      <div class="scan-hero-title">
+        Scan. Enhance.<em>Perfection.</em>
+      </div>
+      <p class="scan-hero-sub">Capture or upload a document, auto-detect edges, fine-tune, and export a crisp professional scan.</p>
+    </div>
+    <button class="btn-scan-main" onclick="openModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+      Scan a Document
+    </button>
+  </div>
+
+  <!-- ── SCREEN 2: EDITOR ── -->
+  <div id="screen-editor">
+    <div class="editor-layout">
+      <!-- Canvas -->
+      <div>
+        <div class="canvas-wrap" id="canvas-wrap">
+          <canvas id="main-canvas"></canvas>
+          <canvas id="crop-canvas"></canvas>
+          <svg id="poly-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <path id="poly-path" d=""/>
+          </svg>
+          <div class="handles-layer" id="handles-layer"></div>
+          <div class="loading-overlay" id="loading-overlay">
+            <div class="spinner"></div>
+            <p id="loading-msg">Processing…</p>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin-top:8px;text-align:center;">
+          Drag the corner handles to adjust the document boundary
+        </p>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="sidebar">
+
+        <!-- Crop/Resize -->
+        <div class="sidebar-section">
+          <h3>Crop &amp; Size</h3>
+          <div class="tool-grid">
+            <button class="tool-btn" id="btn-auto-detect" onclick="autoDetectEdges()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/></svg>
+              Auto Detect
+            </button>
+            <button class="tool-btn" id="btn-reset-crop" onclick="resetCrop()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              Reset
+            </button>
+            <button class="tool-btn" onclick="setCropPreset('a4')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="12" height="16" rx="1"/><line x1="8" y1="6" x2="12" y2="6"/><line x1="8" y1="10" x2="12" y2="10"/></svg>
+              A4
+            </button>
+            <button class="tool-btn" onclick="setCropPreset('square')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/></svg>
+              Square
+            </button>
+          </div>
+        </div>
+
+        <!-- Enhance -->
+        <div class="sidebar-section">
+          <h3>Enhance</h3>
+          <div class="tool-grid" style="margin-bottom:12px;">
+            <button class="tool-btn" id="btn-bw" onclick="applyBW()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M12 3a9 9 0 010 18"/></svg>
+              B&amp;W Scan
+            </button>
+            <button class="tool-btn" id="btn-adaptive" onclick="applyAdaptive()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              Adaptive
+            </button>
+            <button class="tool-btn" id="btn-color" onclick="applyColor()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 015 5c0 6-5 9-5 9S7 13 7 7a5 5 0 015-5z"/><circle cx="12" cy="7" r="2"/></svg>
+              Color Fix
+            </button>
+            <button class="tool-btn" id="btn-none" onclick="applyNone()" class="active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              Original
+            </button>
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">Brightness <span id="lbl-brightness">0</span></div>
+            <input type="range" id="sl-brightness" min="-100" max="100" value="0" oninput="updateSlider()">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label">Contrast <span id="lbl-contrast">0</span></div>
+            <input type="range" id="sl-contrast" min="-100" max="100" value="0" oninput="updateSlider()">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label">Sharpness <span id="lbl-sharpness">0</span></div>
+            <input type="range" id="sl-sharpness" min="0" max="10" value="0" oninput="updateSlider()">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label">Shadow Fix <span id="lbl-shadow">0</span></div>
+            <input type="range" id="sl-shadow" min="0" max="100" value="0" oninput="updateSlider()">
+          </div>
+
+          <!-- Compare -->
+          <div class="compare-strip">
+            <label for="compare-toggle">Compare original</label>
+            <div class="toggle" id="compare-toggle" onclick="toggleCompare(this)"></div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="sidebar-section">
+          <h3>Actions</h3>
+          <button class="btn-primary" onclick="generateFinal()">
+            ✦ Generate Final Scan
+          </button>
+          <button class="btn-secondary" onclick="openModal()">↩ Scan New Document</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SCREEN 3: PREVIEW ── -->
+  <div id="screen-preview">
+    <div class="preview-header">
+      <h2>Final Scan Preview</h2>
+      <p>Your document has been processed and is ready to download.</p>
+    </div>
+    <div class="preview-frame">
+      <img id="preview-img" src="" alt="Scanned document preview">
+    </div>
+    <div class="meta-grid">
+      <div class="meta-card"><div class="lbl">Width</div><div class="val" id="meta-w">—</div></div>
+      <div class="meta-card"><div class="lbl">Height</div><div class="val" id="meta-h">—</div></div>
+      <div class="meta-card"><div class="lbl">Mode</div><div class="val" id="meta-mode">—</div></div>
+      <div class="meta-card"><div class="lbl">Size</div><div class="val" id="meta-size">—</div></div>
+    </div>
+    <div class="preview-actions">
+      <button class="btn-download" onclick="downloadScan('png')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Download PNG
+      </button>
+      <button class="btn-download" style="background:var(--accent2);color:white;" onclick="downloadScan('jpg')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Download JPG
+      </button>
+      <button class="btn-back" onclick="goBackToEditor()">
+        ← Back to Editor
+      </button>
+    </div>
+  </div>
+</main>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <h2>Add a Document</h2>
+    <p>Take a photo with your camera or upload an existing image</p>
+    <div class="modal-options">
+      <div class="modal-option" onclick="openCamera()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <span>Take Photo</span>
+      </div>
+      <div class="modal-option" onclick="triggerUpload()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <span>Upload Image</span>
+      </div>
+    </div>
+    <button class="modal-close" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept="image/*" onchange="loadFile(event)">
+<input type="file" id="camera-input" accept="image/*" capture="environment" onchange="loadFile(event)">
+
+<!-- STATUS BAR -->
+<div class="status-bar" id="status-bar">
+  <div class="status-dot"></div>
+  <span id="status-msg">Ready</span>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────
+let originalImg = null;
+let processedImageData = null;
+let currentMode = 'none';
+let isComparing = false;
+let compareInterval = null;
+let corners = []; // [{x,y}] x4 in canvas coords
+
+const mainCanvas = document.getElementById('main-canvas');
+const ctx = mainCanvas.getContext('2d');
+const cropCanvas = document.getElementById('crop-canvas');
+const cropCtx = cropCanvas.getContext('2d');
+
+// ─── MODAL ───────────────────────────────────────────────
+function openModal() {
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+function closeModalOutside(e) {
+  if (e.target.id === 'modal') closeModal();
+}
+function openCamera() {
+  document.getElementById('camera-input').click();
+  closeModal();
+}
+function triggerUpload() {
+  document.getElementById('file-input').click();
+  closeModal();
+}
+
+// ─── FILE LOAD ────────────────────────────────────────────
+function loadFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      originalImg = img;
+      showEditor();
+      drawImage();
+      setTimeout(() => autoDetectEdges(), 100);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+// ─── SHOW SCREENS ────────────────────────────────────────
+function showEditor() {
+  document.getElementById('screen-landing').style.display = 'none';
+  document.getElementById('screen-preview').style.display = 'none';
+  document.getElementById('screen-editor').style.display = 'block';
+  setPills(['done','active','','']);
+  resetSliders();
+  currentMode = 'none';
+  document.getElementById('btn-none').classList.add('active');
+}
+function showPreview() {
+  document.getElementById('screen-editor').style.display = 'none';
+  document.getElementById('screen-preview').style.display = 'block';
+  setPills(['done','done','done','active']);
+}
+function goBackToEditor() {
+  document.getElementById('screen-preview').style.display = 'none';
+  document.getElementById('screen-editor').style.display = 'block';
+  setPills(['done','active','done','']);
+}
+
+function setPills(states) {
+  const ids = ['pill-1','pill-2','pill-3','pill-4'];
+  const labels = ['① Capture','② Adjust','③ Enhance','④ Preview'];
+  ids.forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.className = 'pill';
+    if (states[i] === 'active') el.classList.add('active');
+    if (states[i] === 'done') el.classList.add('done');
+  });
+}
+
+// ─── DRAW IMAGE ──────────────────────────────────────────
+function drawImage() {
+  const wrap = document.getElementById('canvas-wrap');
+  const maxW = wrap.clientWidth - 2;
+  const maxH = window.innerHeight * 0.68;
+  let w = originalImg.width, h = originalImg.height;
+  const scale = Math.min(maxW / w, maxH / h, 1);
+  mainCanvas.width = Math.round(w * scale);
+  mainCanvas.height = Math.round(h * scale);
+  mainCanvas.style.display = 'block';
+  cropCanvas.style.display = 'none';
+  ctx.drawImage(originalImg, 0, 0, mainCanvas.width, mainCanvas.height);
+  processedImageData = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+  updatePolySVG();
+}
+
+// ─── CORNERS & POLY ──────────────────────────────────────
+function autoDetectEdges() {
+  if (!originalImg) return;
+  showLoading('Detecting edges…');
+  setTimeout(() => {
+    const W = mainCanvas.width, H = mainCanvas.height;
+    const pad = Math.min(W, H) * 0.08;
+    corners = [
+      {x: pad, y: pad},
+      {x: W - pad, y: pad},
+      {x: W - pad, y: H - pad},
+      {x: pad, y: H - pad}
+    ];
+    // Attempt smarter detection by scanning for content
+    const idata = ctx.getImageData(0, 0, W, H);
+    const d = idata.data;
+    // Find bounding box of non-white pixels
+    let minX = W, minY = H, maxX = 0, maxY = 0;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        const r = d[i], g = d[i+1], b = d[i+2];
+        const lum = 0.299*r + 0.587*g + 0.114*b;
+        if (lum < 240) {
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX > minX && maxY > minY) {
+      const margin = 6;
+      corners = [
+        {x: Math.max(minX-margin,0), y: Math.max(minY-margin,0)},
+        {x: Math.min(maxX+margin,W), y: Math.max(minY-margin,0)},
+        {x: Math.min(maxX+margin,W), y: Math.min(maxY+margin,H)},
+        {x: Math.max(minX-margin,0), y: Math.min(maxY+margin,H)}
+      ];
+    }
+    renderHandles();
+    updatePolySVG();
+    hideLoading();
+    showStatus('Edges detected — drag handles to adjust');
+  }, 400);
+}
+
+function resetCrop() {
+  if (!originalImg) return;
+  const W = mainCanvas.width, H = mainCanvas.height;
+  const pad = 4;
+  corners = [
+    {x: pad, y: pad},
+    {x: W-pad, y: pad},
+    {x: W-pad, y: H-pad},
+    {x: pad, y: H-pad}
+  ];
+  renderHandles();
+  updatePolySVG();
+  showStatus('Crop reset to full image');
+}
+
+function setCropPreset(preset) {
+  if (!originalImg) return;
+  const W = mainCanvas.width, H = mainCanvas.height;
+  let pad = 4;
+  if (preset === 'a4') {
+    // A4 ratio = 1:√2 ≈ 1:1.414
+    const ratio = 1 / 1.414;
+    let nW = W - pad*2, nH = nW / ratio;
+    if (nH > H - pad*2) { nH = H - pad*2; nW = nH * ratio; }
+    const ox = (W - nW) / 2, oy = (H - nH) / 2;
+    corners = [{x:ox,y:oy},{x:ox+nW,y:oy},{x:ox+nW,y:oy+nH},{x:ox,y:oy+nH}];
+  } else if (preset === 'square') {
+    const s = Math.min(W,H) - pad*2;
+    const ox = (W-s)/2, oy = (H-s)/2;
+    corners = [{x:ox,y:oy},{x:ox+s,y:oy},{x:ox+s,y:oy+s},{x:ox,y:oy+s}];
+  }
+  renderHandles();
+  updatePolySVG();
+  showStatus(`Preset: ${preset.toUpperCase()}`);
+}
+
+function renderHandles() {
+  const layer = document.getElementById('handles-layer');
+  layer.innerHTML = '';
+  corners.forEach((c, i) => {
+    const h = document.createElement('div');
+    h.className = 'handle';
+    positionHandle(h, c);
+    makeDraggable(h, i);
+    layer.appendChild(h);
+  });
+}
+
+function positionHandle(el, c) {
+  el.style.left = c.x + 'px';
+  el.style.top = c.y + 'px';
+}
+
+function makeDraggable(el, idx) {
+  let startX, startY, origX, origY;
+  const onMove = e => {
+    const ev = e.touches ? e.touches[0] : e;
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    const rect = mainCanvas.getBoundingClientRect();
+    corners[idx].x = Math.max(0, Math.min(mainCanvas.width, origX + dx * (mainCanvas.width / rect.width)));
+    corners[idx].y = Math.max(0, Math.min(mainCanvas.height, origY + dy * (mainCanvas.height / rect.height)));
+    positionHandle(el, corners[idx]);
+    updatePolySVG();
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+  };
+  const onDown = e => {
+    e.preventDefault();
+    const ev = e.touches ? e.touches[0] : e;
+    startX = ev.clientX; startY = ev.clientY;
+    origX = corners[idx].x; origY = corners[idx].y;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, {passive:false});
+    document.addEventListener('touchend', onUp);
+  };
+  el.addEventListener('mousedown', onDown);
+  el.addEventListener('touchstart', onDown, {passive:false});
+}
+
+function updatePolySVG() {
+  if (!corners.length) return;
+  const W = mainCanvas.width, H = mainCanvas.height;
+  const path = corners.map((c,i) => {
+    const px = (c.x / W * 100).toFixed(2);
+    const py = (c.y / H * 100).toFixed(2);
+    return (i===0?'M':'L') + px + ',' + py;
+  }).join(' ') + ' Z';
+  document.getElementById('poly-path').setAttribute('d', path);
+}
+
+// ─── IMAGE PROCESSING ────────────────────────────────────
+function getSliders() {
+  return {
+    brightness: parseInt(document.getElementById('sl-brightness').value),
+    contrast: parseInt(document.getElementById('sl-contrast').value),
+    sharpness: parseInt(document.getElementById('sl-sharpness').value),
+    shadow: parseInt(document.getElementById('sl-shadow').value)
+  };
+}
+
+function resetSliders() {
+  ['sl-brightness','sl-contrast','sl-sharpness','sl-shadow'].forEach(id => {
+    document.getElementById(id).value = 0;
+  });
+  ['lbl-brightness','lbl-contrast','lbl-sharpness','lbl-shadow'].forEach(id => {
+    document.getElementById(id).textContent = '0';
+  });
+}
+
+function updateSlider() {
+  ['brightness','contrast','sharpness','shadow'].forEach(k => {
+    const v = document.getElementById('sl-'+k).value;
+    document.getElementById('lbl-'+k).textContent = v;
+  });
+  applyCurrentMode();
+}
+
+function applyCurrentMode() {
+  if (!originalImg) return;
+  switch(currentMode) {
+    case 'bw': applyBW(true); break;
+    case 'adaptive': applyAdaptive(true); break;
+    case 'color': applyColor(true); break;
+    default: applyNone(true); break;
+  }
+}
+
+function setActiveEnhanceBtn(id) {
+  ['btn-bw','btn-adaptive','btn-color','btn-none'].forEach(b => {
+    document.getElementById(b).classList.remove('active');
+  });
+  document.getElementById(id).classList.add('active');
+}
+
+function applyNone(silent) {
+  currentMode = 'none';
+  if (!silent) setActiveEnhanceBtn('btn-none');
+  const s = getSliders();
+  ctx.drawImage(originalImg, 0, 0, mainCanvas.width, mainCanvas.height);
+  let idata = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+  applyBrightnessContrast(idata.data, s.brightness, s.contrast);
+  applyShadowFix(idata.data, s.shadow);
+  if (s.sharpness > 0) idata = sharpen(idata, mainCanvas.width, mainCanvas.height, s.sharpness * 0.15);
+  ctx.putImageData(idata, 0, 0);
+  if (!silent) showStatus('Original mode');
+}
+
+function applyBW(silent) {
+  currentMode = 'bw';
+  if (!silent) { setActiveEnhanceBtn('btn-bw'); showLoading('Applying B&W scan…'); }
+  const s = getSliders();
+  setTimeout(() => {
+    ctx.drawImage(originalImg, 0, 0, mainCanvas.width, mainCanvas.height);
+    let idata = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+    applyShadowFix(idata.data, Math.max(s.shadow, 20));
+    applyBrightnessContrast(idata.data, s.brightness + 10, s.contrast + 20);
+    toGrayscale(idata.data);
+    applyAdaptiveThreshold(idata.data, mainCanvas.width, mainCanvas.height, 15);
+    if (s.sharpness > 0) idata = sharpen(idata, mainCanvas.width, mainCanvas.height, s.sharpness * 0.2);
+    ctx.putImageData(idata, 0, 0);
+    if (!silent) { hideLoading(); showStatus('B&W adaptive scan applied'); }
+  }, silent ? 0 : 200);
+}
+
+function applyAdaptive(silent) {
+  currentMode = 'adaptive';
+  if (!silent) { setActiveEnhanceBtn('btn-adaptive'); showLoading('Adaptive threshold…'); }
+  const s = getSliders();
+  setTimeout(() => {
+    ctx.drawImage(originalImg, 0, 0, mainCanvas.width, mainCanvas.height);
+    let idata = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+    applyShadowFix(idata.data, Math.max(s.shadow, 30));
+    applyBrightnessContrast(idata.data, s.brightness, s.contrast + 30);
+    toGrayscale(idata.data);
+    applyAdaptiveThreshold(idata.data, mainCanvas.width, mainCanvas.height, 25);
+    if (s.sharpness > 0) idata = sharpen(idata, mainCanvas.width, mainCanvas.height, s.sharpness * 0.25);
+    ctx.putImageData(idata, 0, 0);
+    if (!silent) { hideLoading(); showStatus('Adaptive threshold applied'); }
+  }, silent ? 0 : 200);
+}
+
+function applyColor(silent) {
+  currentMode = 'color';
+  if (!silent) { setActiveEnhanceBtn('btn-color'); showLoading('Enhancing colors…'); }
+  const s = getSliders();
+  setTimeout(() => {
+    ctx.drawImage(originalImg, 0, 0, mainCanvas.width, mainCanvas.height);
+    let idata = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+    applyShadowFix(idata.data, Math.max(s.shadow, 25));
+    applyBrightnessContrast(idata.data, s.brightness + 15, s.contrast + 25);
+    applyColorSaturation(idata.data, 1.2);
+    if (s.sharpness > 0) idata = sharpen(idata, mainCanvas.width, mainCanvas.height, s.sharpness * 0.15);
+    ctx.putImageData(idata, 0, 0);
+    if (!silent) { hideLoading(); showStatus('Color enhancement applied'); }
+  }, silent ? 0 : 200);
+}
+
+// ─── PIXEL OPS ───────────────────────────────────────────
+function toGrayscale(d) {
+  for (let i = 0; i < d.length; i += 4) {
+    const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    d[i] = d[i+1] = d[i+2] = g;
+  }
+}
+
+function applyBrightnessContrast(d, brightness, contrast) {
+  const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+  for (let i = 0; i < d.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      let v = d[i+c] + brightness;
+      v = factor * (v - 128) + 128;
+      d[i+c] = Math.max(0, Math.min(255, v));
+    }
+  }
+}
+
+function applyShadowFix(d, amount) {
+  if (amount <= 0) return;
+  const t = amount / 100;
+  for (let i = 0; i < d.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const v = d[i+c] / 255;
+      // Gamma lift darks
+      d[i+c] = Math.min(255, Math.round(Math.pow(v, 1 - t*0.6) * 255));
+    }
+  }
+}
+
+function applyAdaptiveThreshold(d, W, H, blockSize) {
+  // Compute integral image for fast local mean
+  const gray = new Float32Array(W * H);
+  for (let i = 0; i < d.length / 4; i++) gray[i] = d[i*4];
+  const integral = new Float64Array((W+1) * (H+1));
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      integral[(y+1)*(W+1)+(x+1)] = gray[y*W+x]
+        + integral[y*(W+1)+(x+1)]
+        + integral[(y+1)*(W+1)+x]
+        - integral[y*(W+1)+x];
+    }
+  }
+  const half = Math.floor(blockSize / 2);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const x1 = Math.max(0, x - half), y1 = Math.max(0, y - half);
+      const x2 = Math.min(W-1, x + half), y2 = Math.min(H-1, y + half);
+      const area = (x2-x1+1) * (y2-y1+1);
+      const sum = integral[(y2+1)*(W+1)+(x2+1)]
+        - integral[y1*(W+1)+(x2+1)]
+        - integral[(y2+1)*(W+1)+x1]
+        + integral[y1*(W+1)+x1];
+      const mean = sum / area;
+      const idx = (y*W+x)*4;
+      const v = gray[y*W+x] < mean * 0.88 ? 0 : 255;
+      d[idx] = d[idx+1] = d[idx+2] = v;
+    }
+  }
+}
+
+function applyColorSaturation(d, factor) {
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i+1], b = d[i+2];
+    const gray = 0.299*r + 0.587*g + 0.114*b;
+    d[i]   = Math.max(0, Math.min(255, gray + (r - gray) * factor));
+    d[i+1] = Math.max(0, Math.min(255, gray + (g - gray) * factor));
+    d[i+2] = Math.max(0, Math.min(255, gray + (b - gray) * factor));
+  }
+}
+
+function sharpen(idata, W, H, amt) {
+  const d = new Uint8ClampedArray(idata.data);
+  const src = idata.data;
+  const kernel = [0,-1*amt,0,-1*amt,1+4*amt,-1*amt,0,-1*amt,0];
+  for (let y = 1; y < H-1; y++) {
+    for (let x = 1; x < W-1; x++) {
+      for (let c = 0; c < 3; c++) {
+        let val = 0;
+        for (let ky = -1; ky <= 1; ky++) {
+          for (let kx = -1; kx <= 1; kx++) {
+            const ki = (ky+1)*3+(kx+1);
+            val += src[((y+ky)*W+(x+kx))*4+c] * kernel[ki];
+          }
+        }
+        d[(y*W+x)*4+c] = Math.max(0, Math.min(255, val));
+      }
+    }
+  }
+  return new ImageData(d, W, H);
+}
+
+// ─── COMPARE ─────────────────────────────────────────────
+function toggleCompare(el) {
+  el.classList.toggle('on');
+  isComparing = el.classList.contains('on');
+  if (isComparing) {
+    startCompare();
+    showStatus('Comparing: original ↔ enhanced');
+  } else {
+    stopCompare();
+    applyCurrentMode();
+  }
+}
+
+function startCompare() {
+  let showOrig = false;
+  compareInterval = setInterval(() => {
+    if (showOrig) {
+      ctx.drawImage(originalImg, 0, 0, mainCanvas.width, mainCanvas.height);
+    } else {
+      applyCurrentMode();
+    }
+    showOrig = !showOrig;
+  }, 1200);
+}
+
+function stopCompare() {
+  clearInterval(compareInterval);
+}
+
+// ─── GENERATE FINAL ──────────────────────────────────────
+function generateFinal() {
+  if (!originalImg) return;
+  showLoading('Generating final scan…');
+  setTimeout(() => {
+    // Apply perspective correction using corners
+    const outW = distanceBetween(corners[0], corners[1]);
+    const outH = distanceBetween(corners[0], corners[3]);
+    cropCanvas.width = Math.round(outW);
+    cropCanvas.height = Math.round(outH);
+
+    // Simple perspective crop by extracting the bounding box region
+    // and applying the current enhancement to the cropped region
+    const scale = originalImg.width / mainCanvas.width;
+    const scaledCorners = corners.map(c => ({x: c.x*scale, y: c.y*scale}));
+
+    // Get bounding box
+    const minX = Math.min(...scaledCorners.map(c=>c.x));
+    const minY = Math.min(...scaledCorners.map(c=>c.y));
+    const maxX = Math.max(...scaledCorners.map(c=>c.x));
+    const maxY = Math.max(...scaledCorners.map(c=>c.y));
+    const cW = maxX - minX, cH = maxY - minY;
+
+    // Draw cropped + enhanced to cropCanvas
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = Math.round(cW);
+    tempCanvas.height = Math.round(cH);
+    const tCtx = tempCanvas.getContext('2d');
+    tCtx.drawImage(originalImg, minX, minY, cW, cH, 0, 0, cW, cH);
+
+    // Apply enhancement
+    const s = getSliders();
+    let idata = tCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    applyShadowFix(idata.data, s.shadow);
+    applyBrightnessContrast(idata.data, s.brightness, s.contrast);
+    if (currentMode === 'bw' || currentMode === 'adaptive') {
+      applyShadowFix(idata.data, Math.max(s.shadow,20));
+      applyBrightnessContrast(idata.data, s.brightness, currentMode==='adaptive'?s.contrast+30:s.contrast+20);
+      toGrayscale(idata.data);
+      applyAdaptiveThreshold(idata.data, tempCanvas.width, tempCanvas.height, currentMode==='adaptive'?25:15);
+    } else if (currentMode === 'color') {
+      applyColorSaturation(idata.data, 1.2);
+    }
+    if (s.sharpness > 0) idata = sharpen(idata, tempCanvas.width, tempCanvas.height, s.sharpness*0.15);
+    tCtx.putImageData(idata, 0, 0);
+
+    // Scale to crop canvas
+    cropCtx.drawImage(tempCanvas, 0, 0, cropCanvas.width, cropCanvas.height);
+
+    const dataURL = cropCanvas.toDataURL('image/png');
+    document.getElementById('preview-img').src = dataURL;
+    document.getElementById('meta-w').textContent = cropCanvas.width + 'px';
+    document.getElementById('meta-h').textContent = cropCanvas.height + 'px';
+    document.getElementById('meta-mode').textContent = {bw:'B&W', adaptive:'Adaptive', color:'Color', none:'Original'}[currentMode] || 'Original';
+
+    // Estimate size
+    const bytes = Math.round(dataURL.length * 0.75);
+    document.getElementById('meta-size').textContent = bytes > 1048576
+      ? (bytes/1048576).toFixed(1)+'MB'
+      : (bytes/1024).toFixed(0)+'KB';
+
+    hideLoading();
+    showPreview();
+  }, 600);
+}
+
+function distanceBetween(a, b) {
+  return Math.sqrt(Math.pow(b.x-a.x,2) + Math.pow(b.y-a.y,2));
+}
+
+// ─── DOWNLOAD ────────────────────────────────────────────
+function downloadScan(format) {
+  const img = document.getElementById('preview-img');
+  const a = document.createElement('a');
+  a.download = 'docscan.' + format;
+  if (format === 'jpg') {
+    const c = document.createElement('canvas');
+    const i = new Image(); i.src = img.src;
+    c.width = i.naturalWidth; c.height = i.naturalHeight;
+    const tc = c.getContext('2d');
+    tc.fillStyle = '#fff'; tc.fillRect(0,0,c.width,c.height);
+    tc.drawImage(i,0,0);
+    a.href = c.toDataURL('image/jpeg', 0.92);
+  } else {
+    a.href = img.src;
+  }
+  a.click();
+  showStatus('Download started!');
+}
+
+// ─── UI HELPERS ──────────────────────────────────────────
+function showLoading(msg) {
+  document.getElementById('loading-msg').textContent = msg || 'Processing…';
+  document.getElementById('loading-overlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.remove('show');
+}
+let statusTimer;
+function showStatus(msg) {
+  document.getElementById('status-msg').textContent = msg;
+  const bar = document.getElementById('status-bar');
+  bar.classList.add('show');
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => bar.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
