@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>Permission Detector</title>
+
+<style>
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  font-family:Arial,sans-serif;
+  background:#111827;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:32px 16px;
+  color:#e5e7eb;
+}
+
+h1{
+  font-size:22px;
+  margin-bottom:8px;
+}
+
+p{
+  color:#9ca3af;
+  text-align:center;
+  margin-bottom:24px;
+}
+
+button{
+  border:none;
+  cursor:pointer;
+}
+
+#detectBtn{
+  padding:14px 28px;
+  border-radius:14px;
+  font-size:16px;
+  background:#2563eb;
+  color:white;
+}
+
+#detectBtn:hover{
+  background:#1d4ed8;
+}
+
+#results{
+  width:100%;
+  max-width:720px;
+  margin-top:28px;
+  display:none;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+
+@media(max-width:640px){
+  #results{
+    grid-template-columns:1fr;
+  }
+}
+
+.card{
+  background:#1f2937;
+  border:1px solid #374151;
+  border-radius:12px;
+  padding:14px 16px;
+}
+
+.card .name{
+  font-weight:bold;
+  margin-bottom:6px;
+  word-break:break-word;
+}
+
+.card .detail{
+  font-size:13px;
+  color:#9ca3af;
+  word-break:break-word;
+}
+
+.status{
+  display:inline-block;
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:bold;
+  margin-bottom:8px;
+}
+
+.ok{
+  background:#065f46;
+  color:#6ee7b7;
+}
+
+.no{
+  background:#7f1d1d;
+  color:#fca5a5;
+}
+
+</style>
+</head>
+<body>
+
+<h1>🔍 Permission Detector</h1>
+<p>Checks which browser permission &amp; capability APIs this browser exposes.</p>
+
+<button id="detectBtn">Start Detection</button>
+
+<div id="results"></div>
+
+<script>
+
+const detectBtn = document.getElementById("detectBtn");
+const results = document.getElementById("results");
+
+function exists(value){
+  return typeof value !== "undefined" && value !== null;
+}
+
+function createCard(data){
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const status = document.createElement("span");
+  status.className = "status " + (data.supported ? "ok" : "no");
+  status.textContent = data.supported ? "✓ Supported" : "✗ Not supported";
+  card.appendChild(status);
+
+  const name = document.createElement("div");
+  name.className = "name";
+  name.textContent = data.name;
+  card.appendChild(name);
+
+  const detail = document.createElement("div");
+  detail.className = "detail";
+  detail.textContent = data.detail || "";
+  card.appendChild(detail);
+
+  return card;
+}
+
+function storageAvailable(type){
+  try{
+    const storage = window[type];
+    const test = "__permdet__";
+    storage.setItem(test, test);
+    storage.removeItem(test);
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+function detectPermissions(){
+  const features = [];
+
+  features.push({
+    name: "Permissions API",
+    supported: exists(navigator.permissions) && exists(navigator.permissions.query),
+    detail: "navigator.permissions.query()"
+  });
+
+  features.push({
+    name: "Notifications",
+    supported: exists(Notification),
+    detail: typeof Notification !== "undefined"
+      ? "Current state: " + Notification.permission
+      : "Notification API missing"
+  });
+
+  features.push({
+    name: "Geolocation",
+    supported: exists(navigator.geolocation) && exists(navigator.geolocation.getCurrentPosition),
+    detail: "navigator.geolocation"
+  });
+
+  features.push({
+    name: "Clipboard API",
+    supported: exists(navigator.clipboard) && exists(navigator.clipboard.readText),
+    detail: "navigator.clipboard (async read/write)"
+  });
+
+  features.push({
+    name: "MediaDevices (camera/mic)",
+    supported: exists(navigator.mediaDevices) && exists(navigator.mediaDevices.getUserMedia),
+    detail: "navigator.mediaDevices.getUserMedia()"
+  });
+
+  features.push({
+    name: "Screen Capture",
+    supported: exists(navigator.mediaDevices) && exists(navigator.mediaDevices.getDisplayMedia),
+    detail: "navigator.mediaDevices.getDisplayMedia()"
+  });
+
+  features.push({
+    name: "Service Workers",
+    supported: exists(navigator.serviceWorker),
+    detail: "navigator.serviceWorker"
+  });
+
+  features.push({
+    name: "Web Push",
+    supported: exists(PushManager),
+    detail: "PushManager"
+  });
+
+  features.push({
+    name: "Wake Lock API",
+    supported: exists(navigator.wakeLock) && exists(navigator.wakeLock.request),
+    detail: "Prevents screen from dimming"
+  });
+
+  features.push({
+    name: "Battery API",
+    supported: exists(navigator.getBattery),
+    detail: "navigator.getBattery()"
+  });
+
+  features.push({
+    name: "Vibration",
+    supported: exists(navigator.vibrate),
+    detail: "navigator.vibrate()"
+  });
+
+  features.push({
+    name: "MIDI",
+    supported: exists(navigator.requestMIDIAccess),
+    detail: "navigator.requestMIDIAccess()"
+  });
+
+  features.push({
+    name: "WebUSB",
+    supported: exists(navigator.usb),
+    detail: "navigator.usb — works over HTTPS"
+  });
+
+  features.push({
+    name: "Web Bluetooth",
+    supported: exists(navigator.bluetooth),
+    detail: "navigator.bluetooth"
+  });
+
+  features.push({
+    name: "Web Serial",
+    supported: exists(navigator.serial),
+    detail: "navigator.serial"
+  });
+
+  features.push({
+    name: "Local Storage",
+    supported: storageAvailable("localStorage"),
+    detail: "window.localStorage"
+  });
+
+  features.push({
+    name: "Session Storage",
+    supported: storageAvailable("sessionStorage"),
+    detail: "window.sessionStorage"
+  });
+
+  features.push({
+    name: "IndexedDB",
+    supported: exists(window.indexedDB),
+    detail: "window.indexedDB"
+  });
+
+  features.forEach(function(feature){
+    results.appendChild(createCard(feature));
+  });
+
+  results.style.display = "grid";
+  detectBtn.textContent = "↻ Run Again";
+}
+
+detectBtn.onclick = () => {
+  results.innerHTML = "";
+  detectPermissions();
+};
+
+</script>
+
+</body>
+</html>
